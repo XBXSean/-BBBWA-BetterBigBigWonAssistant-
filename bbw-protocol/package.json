@@ -1,0 +1,9 @@
+{
+  "name": "bbw-protocol",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "BIGBIG WON 手柄配置协议库 —— 纯 WebHID 网页驱动",
+  "scripts": {
+    "test": "node --test test/"
+  }
+}

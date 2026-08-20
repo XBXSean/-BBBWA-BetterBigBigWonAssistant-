@@ -1,0 +1,32 @@
+# ===== 依赖 =====
+node_modules/
+
+# ===== 构建产物 =====
+dist/
+*.tsbuildinfo
+
+# ===== 日志 =====
+*.log
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ===== 系统 / 编辑器 =====
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+*~
+
+# ===== 环境 / 本地配置 =====
+.env
+.env.*
+!.env.example
+*.local
+
+# ===== 缓存 =====
+.cache/
+.tmp/
+.history/

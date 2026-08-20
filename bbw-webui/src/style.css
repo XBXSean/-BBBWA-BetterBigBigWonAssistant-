@@ -1,0 +1,176 @@
+/* 设计系统:暗色优先 + 手动主题;紫主色;侧边栏 + 卡片 + pill 导航 */
+:root {
+  --background: 10 10 10;
+  --background-secondary: 20 20 20;
+  --foreground: 255 255 255;
+  --muted-foreground: 142 142 147;
+  --tertiary-foreground: 99 99 102;
+  --card: 29 30 31;
+  --card-foreground: 255 255 255;
+  --muted: 44 44 46;
+  --primary: 88 17 139;
+  --primary-foreground: 255 255 255;
+  --secondary: 44 44 46;
+  --secondary-foreground: 255 255 255;
+  --accent: 168 85 247;
+  --accent-foreground: 255 255 255;
+  --destructive: 248 113 113;
+  --success: 74 222 128;
+  --warning: 251 191 36;
+  --border: 56 56 58;
+  --input: 38 40 41;
+  --ring: 168 85 247;
+  --glass-highlight: 255 255 255;
+  --glass-shadow: 0 0 0;
+  --radius: .5rem;
+  --radius-glass: 1.5rem;
+  --radius-pill: 999px;
+  --ease-spring: cubic-bezier(.34,1.56,.64,1);
+  --ease-smooth: cubic-bezier(.16,1,.3,1);
+  --ease-standard: cubic-bezier(.4,0,.2,1);
+  --dur-fast: .15s;
+  --dur-base: .25s;
+  --dur-slow: .5s;
+}
+html.light {
+  --background: 240 242 245;
+  --background-secondary: 255 255 255;
+  --foreground: 0 0 0;
+  --muted-foreground: 142 142 147;
+  --card: 255 255 255;
+  --card-foreground: 0 0 0;
+  --muted: 242 242 247;
+  --primary: 88 17 139;
+  --secondary: 241 245 249;
+  --secondary-foreground: 0 0 0;
+  --accent: 126 34 206;
+  --border: 220 223 230;
+  --input: 220 223 230;
+  --ring: 88 17 139;
+  --success: 34 197 94;
+  --warning: 245 158 11;
+  --destructive: 239 68 68;
+  --glass-shadow: 30 27 75;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: rgb(var(--background)); color: rgb(var(--foreground));
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55; -webkit-font-smoothing: antialiased;
+}
+
+/* ---- 布局:固定侧边栏 + 内容 + sticky 顶栏 ---- */
+.layout { display: flex; min-height: 100vh; }
+.sidebar {
+  width: 240px; flex-shrink: 0; position: fixed; top: 0; bottom: 0; left: 0;
+  display: flex; flex-direction: column; border-right: 1px solid rgb(var(--border));
+  background: rgb(var(--background)); overflow-y: auto; z-index: 30;
+}
+.sidebar .logo { padding: 20px 18px 14px; }
+.sidebar .logo h1 { font-size: 16px; letter-spacing: .5px; }
+.sidebar .logo .sub { font-size: 11px; color: rgb(var(--muted-foreground)); }
+.sidebar nav { padding: 6px 10px; flex: 1; }
+.sidebar nav .nav-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 12px; margin-bottom: 2px; border: 0; border-radius: 10px;
+  background: transparent; color: rgb(var(--muted-foreground)); cursor: pointer;
+  font-size: 13.5px; text-align: left; transition: background var(--dur-fast) var(--ease-standard), color var(--dur-fast);
+}
+.sidebar nav .nav-item:hover { background: rgb(var(--muted)); color: rgb(var(--foreground)); }
+.sidebar nav .nav-item.on {
+  background: rgb(var(--primary)); color: rgb(var(--primary-foreground)); font-weight: 600;
+  box-shadow: 0 0 .75rem rgb(var(--glass-shadow) / .18);
+}
+.sidebar nav .nav-item:disabled { opacity: .4; cursor: not-allowed; }
+.sidebar .foot { padding: 12px 16px; font-size: 11px; color: rgb(var(--tertiary-foreground)); border-top: 1px solid rgb(var(--border)); }
+
+.main { flex: 1; margin-left: 240px; display: flex; flex-direction: column; min-width: 0; }
+.topbar {
+  position: sticky; top: 0; z-index: 40; display: flex; align-items: center; gap: 12px;
+  padding: 10px 22px; border-bottom: 1px solid rgb(var(--border)); background: rgb(var(--background-secondary));
+  flex-wrap: wrap;
+}
+.topbar .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+.topbar .dot.ok { background: rgb(var(--success)); box-shadow: 0 0 8px rgb(var(--success)); }
+.topbar .dot.off { background: rgb(var(--tertiary-foreground)); }
+.topbar .spacer { flex: 1; }
+.content { padding: 22px; max-width: 1080px; }
+
+/* 左右两纵列布局 */
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+.split .col { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+@media (max-width: 980px) { .split { grid-template-columns: 1fr; } }
+
+/* ---- 卡片 ---- */
+.card {
+  background: rgb(var(--card)); color: rgb(var(--card-foreground));
+  border: 1px solid rgb(var(--border)); border-radius: var(--radius-glass);
+  padding: 20px; margin-bottom: 16px;
+  box-shadow: inset 0 1px rgb(var(--glass-highlight) / .05);
+}
+.card h2 { font-size: 15px; margin-bottom: 6px; }
+.card h3 { font-size: 13px; margin: 16px 0 8px; color: rgb(var(--muted-foreground)); font-weight: 600; }
+.card .desc { font-size: 12.5px; color: rgb(var(--muted-foreground)); margin-bottom: 14px; }
+
+/* ---- 按钮(pill 风) ---- */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border: 1px solid rgb(var(--border)); border-radius: var(--radius-pill);
+  background: rgb(var(--muted)); color: rgb(var(--foreground)); cursor: pointer;
+  font-size: 13px; transition: all var(--dur-fast) var(--ease-standard);
+}
+.btn:hover { border-color: rgb(var(--ring) / .5); }
+.btn.primary {
+  background: rgb(var(--primary)); border-color: rgb(var(--primary)); color: rgb(var(--primary-foreground)); font-weight: 600;
+}
+.btn.primary:hover { filter: brightness(1.15); }
+.btn.ghost { background: transparent; }
+.btn.small { padding: 3px 10px; font-size: 12px; }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn.danger:hover { border-color: rgb(var(--destructive)); color: rgb(var(--destructive)); }
+
+/* ---- 表单 ---- */
+input[type=number], input[type=text], select, textarea {
+  background: rgb(var(--background)); color: rgb(var(--foreground));
+  border: 1px solid rgb(var(--input)); border-radius: 8px;
+  padding: 6px 10px; font-size: 13px; font-family: "Cascadia Code", Consolas, monospace;
+  transition: border-color var(--dur-fast);
+}
+input:focus, select:focus, textarea:focus { outline: none; border-color: rgb(var(--ring)); box-shadow: 0 0 0 2px rgb(var(--ring) / .25); }
+input[type=number] { width: 78px; }
+input[type=checkbox] { accent-color: rgb(var(--primary)); width: 15px; height: 15px; }
+.field label { display: block; font-size: 12px; color: rgb(var(--muted-foreground)); margin-bottom: 4px; }
+.grid { display: grid; gap: 12px 20px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+
+/* ---- 表格 ---- */
+table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
+table.tbl th, table.tbl td { border-bottom: 1px solid rgb(var(--border)); padding: 6px 10px; text-align: left; }
+table.tbl th { color: rgb(var(--muted-foreground)); font-weight: 600; font-size: 12px; }
+table.tbl tr:hover td { background: rgb(var(--muted) / .35); }
+
+/* ---- 徽章/状态 ---- */
+.badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: var(--radius-pill); font-size: 11.5px; font-weight: 600; }
+.badge.ok { background: rgb(var(--success) / .15); color: rgb(var(--success)); }
+.badge.warn { background: rgb(var(--warning) / .15); color: rgb(var(--warning)); }
+.badge.bad { background: rgb(var(--destructive) / .15); color: rgb(var(--destructive)); }
+.badge.muted { background: rgb(var(--muted)); color: rgb(var(--muted-foreground)); }
+.ok { color: rgb(var(--success)); }
+.warn { color: rgb(var(--warning)); }
+.bad { color: rgb(var(--destructive)); }
+
+/* ---- 日志/hex ---- */
+.hexrow { font-family: "Cascadia Code", Consolas, monospace; font-size: 12px; word-break: break-all; }
+pre.log {
+  background: rgb(var(--background)); border: 1px solid rgb(var(--border)); border-radius: 12px;
+  padding: 12px; font-size: 12px; max-height: 240px; overflow: auto; white-space: pre-wrap;
+}
+.hint { font-size: 12px; color: rgb(var(--muted-foreground)); }
+
+/* ---- 学习模式高亮 ---- */
+.recorder { border: 1.5px dashed rgb(var(--accent)); border-radius: 12px; padding: 14px; text-align: center; color: rgb(var(--accent)); }
+.chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; margin: 2px 4px 2px 0;
+  border: 1px solid rgb(var(--border)); border-radius: var(--radius-pill);
+  background: rgb(var(--muted)); font-size: 12px;
+}
+.chip.on { background: rgb(var(--primary)); color: rgb(var(--primary-foreground)); border-color: rgb(var(--primary)); }
