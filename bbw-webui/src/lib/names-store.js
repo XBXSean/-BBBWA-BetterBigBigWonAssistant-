@@ -1,11 +1,11 @@
 // 物理按键学习结果存储(localStorage 持久化)
 // 结构: { "byte:bit": { name, code } } —— 键位 = IG_00 游戏手柄输入报告的 字节:位
-// 默认锚点:键 0..3 = M1..M4
+// 默认锚点:固化学习结果(见 names.js KEY_NAMES,单一来源)
 import { reactive } from "vue";
-import { keyName } from "./names.js";
+import { keyName, KEY_NAMES } from "./names.js";
 
 const LS_KEY = "bbw-keynames";
-const DEFAULTS = { 0: "M1", 1: "M2", 2: "M3", 3: "M4", 4: "A", 5: "B", 6: "X", 7: "Y" };
+const DEFAULTS = KEY_NAMES; // code → 默认名(已固化写测定位学习结果)
 
 function load() {
   try {

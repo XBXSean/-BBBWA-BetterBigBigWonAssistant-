@@ -1,7 +1,7 @@
 <script setup>
 // 摇杆设置:左右两纵列。左 = L-默认/L-C1/L-C2(槽0/2/4),右 = R-默认/R-C1/R-C2(槽1/3/5)
-// 槽结构:[0..1]=01 20 [2]=中心正 [3]=中心负 [4..11]=4 曲线点
-//        [12]=外圈死区(100-补码) [13]=上限输出 [14]=稳定系数 [24..47]=扩展键映射
+// 槽结构:[0..1]=01 20 [2]=中心正 [3]=中心负 [4..7]+[10..13]=4曲线点
+//        [8][9]=margin(100-补码) [14]=稳定系数 [20]=偏移X [22]=偏移Y [24..47]=扩展键映射
 import { state, markDirty } from "../lib/store.js";
 import { vkName } from "../lib/names.js";
 import CurveEditor from "../components/CurveEditor.vue";
@@ -17,6 +17,19 @@ function addExtKey(group, vk) {
   const n = Number(vk);
   if (!group.entry.keys.includes(n)) { group.entry.keys.push(n); markDirty(); }
 }
+
+// 精确编辑曲线点(表格输入):clamp 0..100,x 保持非降序(与拖动约束一致)
+function setPoint(si, idx, raw) {
+  const pts = state.profile.curves[si].points;
+  let v = Math.round(clamp(+raw || 0, 0, 100));
+  if (idx % 2 === 0) {
+    const prev = idx >= 2 ? pts[idx - 2] : 0;
+    const next = idx <= 4 ? pts[idx + 2] : 100;
+    v = Math.max(prev, Math.min(next, v));
+  }
+  pts[idx] = v;
+  markDirty();
+}
 </script>
 
 <template>
@@ -28,8 +41,8 @@ function addExtKey(group, vk) {
       <div class="card">
         <h2>{{ side === 'left' ? '左' : '右' }}摇杆死区</h2>
         <p class="desc">
-          中心死区 = 默认槽 [2][3];<b>外圈死区 = 默认槽 [12](100-补码存储,
-          设 33 → 流[26]=0x43=67)</b>。
+          中心死区 = 默认槽 [2][3](真机验证);<b>外圈死区 = 默认槽 [12](100-补码存储,
+          真机验证:设 33 → 流[26]=0x43=67)</b>。
         </p>
         <div class="grid">
           <div class="field">
@@ -73,16 +86,20 @@ function addExtKey(group, vk) {
             <input type="number" min="-10" max="10" :value="state.profile.curves[si].stabilize" @input="state.profile.curves[si].stabilize = clamp(+$event.target.value || 0, -10, 10); markDirty()">
           </div>
         </div>
-        <h3>响应曲线(4 点,拖动调整)</h3>
+        <h3>响应曲线(4 点,拖动或输入精确值)</h3>
         <div style="display:flex;gap:16px;flex-wrap:wrap">
           <CurveEditor :points="state.profile.curves[si].points" @change="markDirty()" />
-          <table class="tbl" style="max-width:200px;align-self:center">
+          <table class="tbl" style="max-width:230px;align-self:center">
             <thead><tr><th>点</th><th>x</th><th>y</th></tr></thead>
             <tbody>
               <tr v-for="j in 4" :key="j">
                 <td>P{{ j - 1 }}</td>
-                <td>{{ state.profile.curves[si].points[(j - 1) * 2] }}</td>
-                <td>{{ state.profile.curves[si].points[(j - 1) * 2 + 1] }}</td>
+                <td><input type="number" min="0" max="100" step="1" style="width:58px"
+                  :value="state.profile.curves[si].points[(j - 1) * 2]"
+                  @change="setPoint(si, (j - 1) * 2, $event.target.value)"></td>
+                <td><input type="number" min="0" max="100" step="1" style="width:58px"
+                  :value="state.profile.curves[si].points[(j - 1) * 2 + 1]"
+                  @change="setPoint(si, (j - 1) * 2 + 1, $event.target.value)"></td>
               </tr>
             </tbody>
           </table>

@@ -50,7 +50,9 @@ const ANALOG_RATE = 0.08;           // 变化率阈值:字节在 ≥8% 报告中
 const gpState = reactive({ connected: false, name: "", buttons: 0, active: [] });
 
 const entries = computed(() =>
-  Object.entries(namesStore.map).map(([bk, v]) => ({ bitKey: bk, ...v })));
+  Object.entries(namesStore.map)
+    .map(([bk, v]) => ({ bitKey: bk, ...v }))
+    .sort((a, b) => (a.code ?? -1) - (b.code ?? -1))); // 按键码升序
 const currentGuide = computed(() => ({ code: GUIDE[guideIdx.value], name: keyName(GUIDE[guideIdx.value]) }));
 const doneCount = computed(() => Object.keys(namesStore.map).length);
 const gpStatusText = computed(() => {
@@ -235,12 +237,12 @@ function skipDetect() {
 function copyRaw() {
   if (!rawLog.value.length) return;
   navigator.clipboard.writeText(rawLog.value.join("\n")).then(
-    () => pushLog("原始报告已复制"),
+    () => pushLog("原始报告已复制,请粘贴给开发者"),
     () => pushLog("复制失败")
   );
 }
 
-/* ── 写测定位模式:临时绑定 键码N → 键盘 'Q',按实体键定位 ── */
+/* ── 写测定位模式:临时绑定 键码N → 键盘 'Q',按实体键定位(机制已真机验证) ── */
 async function wtWrite(code) {
   if (!state.payload) { pushLog("请先在连接页读取配置(作为基线)"); return false; }
   const bm = keyCodeToBitmap(code);
@@ -318,7 +320,7 @@ onBeforeUnmount(() => { stop(); if (state.transport && state.payload && mode.val
     <h2>物理按键定位 / 学习</h2>
     <p class="desc">
       三种方式找出"实体键 ↔ 键码"对应关系:<b>写测定位</b>(写临时绑定键码N→键盘Q,
-      按实体键看哪个出 Q —— 最可靠);<b>Gamepad API</b>(浏览器抽象,无模拟量干扰);
+      按实体键看哪个出 Q —— 机制已真机验证,最可靠);<b>Gamepad API</b>(浏览器抽象,无模拟量干扰);
       <b>HID 原始报告</b>(直接解析 IG_00,需校准)。
     </p>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -419,7 +421,7 @@ onBeforeUnmount(() => { stop(); if (state.transport && state.payload && mode.val
         <pre class="log" style="max-height:120px">{{ rawLog.join("\n") }}</pre>
         <button class="btn small" @click="copyRaw">复制报告</button>
       </div>
-      <div v-if="!rawLog.length" class="hint">还没有收到任何报告 —— 若一直空白,说明游戏手柄通道没打通(可把上方枚举信息复制后提交 Issue)。</div>
+      <div v-if="!rawLog.length" class="hint">还没有收到任何报告 —— 若一直空白,说明游戏手柄通道没打通(可把上方枚举信息复制给开发者)。</div>
     </div>
 
     <div v-if="listening && mode !== 'writetest'" class="recorder" style="margin-top:12px">

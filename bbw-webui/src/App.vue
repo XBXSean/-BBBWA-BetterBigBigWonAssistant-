@@ -8,7 +8,7 @@ import MappingView from "./views/MappingView.vue";
 import StickView from "./views/StickView.vue";
 import CurveView from "./views/CurveView.vue";
 import MotionShockView from "./views/MotionShockView.vue";
-import BackupView from "./views/BackupView.vue";
+import ConfigView from "./views/ConfigView.vue";
 
 const tab = ref("connect");
 const showLog = ref(false);
@@ -19,7 +19,7 @@ const TABS = [
   ["stick", "扳机设置"],
   ["curve", "摇杆设置"],
   ["motion", "体感震动"],
-  ["backup", "配置备份"],
+  ["config", "配置管理"],
 ];
 
 function applyTheme() {
@@ -56,7 +56,7 @@ async function doRead() {
 
 async function doWrite() {
   if (!state.transport || !state.profile) return;
-  if (!confirm("确认将当前编辑写入设备?\n\n(校验将按 CRC-16/MODBUS 自动重算;未编辑字段保留设备原值)")) return;
+  if (!confirm("确认将当前编辑写入设备?\n\n([0..1] 将按 CRC-16/MODBUS 重算;未编辑字段保留设备原值)")) return;
   try {
     const p = serializeProfile(state.profile, state.payload ?? null);
     await state.transport.writeProfile(p);
@@ -94,7 +94,7 @@ async function doWrite() {
             style="margin-left:auto">{{ state.profile.keys.filter((x) => x).length }}</span>
         </button>
       </nav>
-      <div class="foot">开源协议分析项目 · 仅支持配置读写,不含固件升级</div>
+      <div class="foot">CRC-16/MODBUS 已破解 · 协议逆向自 WndMgr/DevMgr</div>
     </aside>
 
     <div class="main">
@@ -117,7 +117,7 @@ async function doWrite() {
         <StickView v-else-if="tab === 'stick'" />
         <CurveView v-else-if="tab === 'curve'" />
         <MotionShockView v-else-if="tab === 'motion'" />
-        <BackupView v-else-if="tab === 'backup'" />
+        <ConfigView v-else-if="tab === 'config'" />
 
         <div v-if="showLog" class="card">
           <h2>日志</h2>

@@ -71,6 +71,6 @@ const ptsPath = computed(() => pts.value.map((pt, i) => `${i === 0 ? "M" : "L"} 
       <text v-for="(pt, i) in pts" :key="'t' + i" :x="disp(pt).x" :y="Math.max(5, disp(pt).y - 5)"
         font-size="4.6" fill="rgb(var(--muted-foreground))" text-anchor="middle">{{ pt.x }},{{ pt.y }}</text>
     </svg>
-    <p class="hint" style="margin-top:4px">拖动 4 个点(x/y 0..100,x 保持非降序)</p>
+    <p class="hint" style="margin-top:4px">拖动 4 个点,或在下方表格输入精确值(x/y 0..100,x 保持非降序)</p>
   </div>
 </template>
