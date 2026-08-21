@@ -60,6 +60,8 @@ python -m http.server 8080 --bind 127.0.0.1
 
 > ⚠️ WebHID 需要 HTTPS 或 localhost。本地用 `http://127.0.0.1` 即可;部署到公网请使用 HTTPS。
 
+也可以直接访问 **https://xbxsean.github.io/-BBBWA-BetterBigBigWonAssistant-/** 使用
+
 ### 方式二:作为库使用
 
 ```js
