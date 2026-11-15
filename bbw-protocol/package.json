@@ -1,0 +1,9 @@
+{
+  "name": "bbw-protocol",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "BIGBIG WON 手柄协议库 —— 508B 配置读写、分帧、CRC 与径向摇杆曲线",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}
