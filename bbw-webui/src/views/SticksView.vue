@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onBeforeUnmount, ref } from "vue";
+import { computed, defineAsyncComponent, onMounted, onBeforeUnmount, ref } from "vue";
 import { model, edit } from "../core/store.js";
 import { applyJoystickCurve, sampleCurve, FULL_SCALE } from "../core/model.js";
 
@@ -32,34 +32,9 @@ const pad = ref({ ok: false, x: 0, y: 0, id: "" });
 const follow = ref(true);
 let raf = 0;
 
-/* 为什么读不到：给一个能直接截图上报的诊断 */
-const diag = ref({ api: false, count: 0, ids: [], focused: false, iframe: false, secure: false, hid: [], t: "" });
-
-async function refreshDiag() {
-  const api = !!navigator.getGamepads;
-  const list = api ? navigator.getGamepads() : [];
-  const ids = [];
-  for (let k = 0; k < list.length; k++) {
-    const p = list[k];
-    if (p && p.connected) ids.push(`${p.id} · ${p.mapping || "无映射"} · ${p.axes.length} 轴 / ${p.buttons.length} 键`);
-  }
-  let hid = [];
-  try {
-    const devs = navigator.hid ? await navigator.hid.getDevices() : [];
-    hid = devs.map((d) => `${d.productName || "HID"} [${(d.collections || [])
-      .map((c) => `${c.usagePage.toString(16)}:${c.usage.toString(16)}`).join(" ")}]`);
-  } catch { /* 忽略 */ }
-  diag.value = {
-    api,
-    count: ids.length,
-    ids,
-    focused: document.hasFocus(),
-    iframe: window.top !== window,
-    secure: window.isSecureContext !== false,
-    hid,
-    t: new Date().toLocaleTimeString(),
-  };
-}
+/* 诊断面板只在开发模式加载，发布构建里整个组件不进包 */
+const StickDiag = import.meta.env.DEV ? defineAsyncComponent(() => import("./_dev/StickDiag.vue")) : null;
+const inIframe = typeof window !== "undefined" && window.top !== window;
 
 function pickPad() {
   const list = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -75,10 +50,7 @@ function pickPad() {
     || pads[0];
 }
 
-let lastDiag = 0;
 function poll() {
-  const now = performance.now();
-  if (now - lastDiag > 500) { lastDiag = now; refreshDiag(); }
   const p = pickPad();
   if (p) {
     const i = sel.value === "left" ? 0 : 2;
@@ -106,25 +78,6 @@ function onGamepadConnected(e) {
 /** 嵌入窗口里 Gamepad API 可能被权限策略挡掉，鼓励在独立标签页里用 */
 function openInTab() {
   window.open(location.href, "_blank", "noopener");
-}
-
-/** 把诊断压成一行，方便直接贴出来 */
-const copied = ref(false);
-function copyDiag() {
-  const d = diag.value;
-  const text = [
-    `Gamepad API ${d.api ? "可用" : "不可用"}`,
-    `设备 ${d.count} 台`,
-    `焦点 ${d.focused ? "有" : "无"}`,
-    d.iframe ? "嵌入窗口" : "顶层页面",
-    d.secure ? "安全上下文" : "非安全上下文",
-    ...d.ids,
-    ...d.hid.map((h) => `HID ${h}`),
-  ].join(" · ");
-  navigator.clipboard?.writeText(text).then(() => {
-    copied.value = true;
-    setTimeout(() => { copied.value = false; }, 1600);
-  }).catch(() => {});
 }
 
 onMounted(() => {
@@ -337,21 +290,13 @@ function toggleInvert(axis) {
 
         <div v-if="follow && !pad.ok" style="margin-top:10px;text-align:center">
           <div class="hint" style="line-height:1.7">
-            浏览器没有把手柄交给页面。先按一下手柄任意键；如果设备数仍是 0，就是浏览器这一侧拿不到，
-            点下面的「复制诊断」发我。
+            浏览器没有把手柄交给页面，先按一下手柄任意键再试。
           </div>
-          <div v-if="diag.iframe" class="hint" style="margin-top:8px;line-height:1.7;color:rgb(var(--warning))">
+          <div v-if="inIframe" class="hint" style="margin-top:8px;line-height:1.7;color:rgb(var(--warning))">
             当前页面运行在嵌入窗口里，手柄接口可能被禁用。用下面的按钮在独立标签页打开再试。
           </div>
-          <button v-if="diag.iframe" class="btn sm" style="margin-top:8px" @click="openInTab">在新标签页打开</button>
-          <div class="hint mono" style="margin-top:8px;line-height:1.75">
-            Gamepad API {{ diag.api ? "可用" : "不可用" }} · 设备 {{ diag.count }} 台 ·
-            焦点 {{ diag.focused ? "有" : "无" }}{{ diag.iframe ? " · 嵌入窗口" : "" }}{{ diag.secure ? "" : " · 非安全上下文" }}
-            <template v-if="diag.ids.length"><br />{{ diag.ids.join("；") }}</template>
-            <template v-if="diag.hid.length"><br />HID：{{ diag.hid.join("；") }}</template>
-          </div>
-          <button class="btn sm" style="margin-top:8px" @click="refreshDiag">重新检测</button>
-          <button class="btn sm" style="margin-left:8px" @click="copyDiag">{{ copied ? "已复制" : "复制诊断" }}</button>
+          <button v-if="inIframe" class="btn sm" style="margin-top:8px" @click="openInTab">在新标签页打开</button>
+          <StickDiag v-if="StickDiag" />
         </div>
 
         <div class="grid c2" style="gap:10px;margin-top:14px">
