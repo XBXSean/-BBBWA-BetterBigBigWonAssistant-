@@ -32,6 +32,35 @@ const pad = ref({ ok: false, x: 0, y: 0, id: "" });
 const follow = ref(true);
 let raf = 0;
 
+/* 为什么读不到：给一个能直接截图上报的诊断 */
+const diag = ref({ api: false, count: 0, ids: [], focused: false, iframe: false, secure: false, hid: [], t: "" });
+
+async function refreshDiag() {
+  const api = !!navigator.getGamepads;
+  const list = api ? navigator.getGamepads() : [];
+  const ids = [];
+  for (let k = 0; k < list.length; k++) {
+    const p = list[k];
+    if (p && p.connected) ids.push(`${p.id} · ${p.mapping || "无映射"} · ${p.axes.length} 轴 / ${p.buttons.length} 键`);
+  }
+  let hid = [];
+  try {
+    const devs = navigator.hid ? await navigator.hid.getDevices() : [];
+    hid = devs.map((d) => `${d.productName || "HID"} [${(d.collections || [])
+      .map((c) => `${c.usagePage.toString(16)}:${c.usage.toString(16)}`).join(" ")}]`);
+  } catch { /* 忽略 */ }
+  diag.value = {
+    api,
+    count: ids.length,
+    ids,
+    focused: document.hasFocus(),
+    iframe: window.top !== window,
+    secure: window.isSecureContext !== false,
+    hid,
+    t: new Date().toLocaleTimeString(),
+  };
+}
+
 function pickPad() {
   const list = navigator.getGamepads ? navigator.getGamepads() : [];
   const pads = [];
@@ -46,7 +75,10 @@ function pickPad() {
     || pads[0];
 }
 
+let lastDiag = 0;
 function poll() {
+  const now = performance.now();
+  if (now - lastDiag > 500) { lastDiag = now; refreshDiag(); }
   const p = pickPad();
   if (p) {
     const i = sel.value === "left" ? 0 : 2;
@@ -71,6 +103,40 @@ function onGamepadConnected(e) {
   pad.value = { ok: true, x: 0, y: 0, id: e.gamepad?.id || "" };
 }
 
+/* HID 兜底：Chrome 在 Windows 上只认 XInput，DirectInput/HID 手柄拿不到 Gamepad API。
+   这种情况下直接读输入接口的原始报文，先看得到数据，再按需解码。 */
+const hidState = ref({ opened: false, hex: "", count: 0, err: "", name: "" });
+let hidDev = null;
+const hexOf = (u8) => [...u8].map((b) => b.toString(16).padStart(2, "0")).join(" ");
+
+/** 嵌入窗口里 Gamepad API 可能被权限策略挡掉，鼓励在独立标签页里用 */
+function openInTab() {
+  window.open(location.href, "_blank", "noopener");
+}
+
+function onHidReport(e) {
+  const u8 = new Uint8Array(e.data.buffer, e.data.byteOffset, e.data.byteLength);
+  hidState.value = { ...hidState.value, hex: `${e.reportId} | ${hexOf(u8)}`, count: hidState.value.count + 1 };
+}
+
+async function openHidInput() {
+  try {
+    if (!navigator.hid) throw new Error("此浏览器不支持 WebHID");
+    const devs = await navigator.hid.requestDevice({
+      filters: [{ vendorId: 0x413d, productId: 0x2104 }],
+    });
+    const dev = devs.find((d) =>
+      (d.collections || []).some((c) => c.usagePage === 0x0001 && c.usage === 0x0005)) || devs[0];
+    if (!dev) throw new Error("没有选中设备");
+    await dev.open();
+    dev.addEventListener("inputreport", onHidReport);
+    hidDev = dev;
+    hidState.value = { opened: true, hex: "", count: 0, err: "", name: dev.productName || "" };
+  } catch (e) {
+    hidState.value = { ...hidState.value, err: e.message };
+  }
+}
+
 onMounted(() => {
   window.addEventListener("gamepadconnected", onGamepadConnected);
   raf = requestAnimationFrame(poll);
@@ -78,6 +144,11 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener("gamepadconnected", onGamepadConnected);
   cancelAnimationFrame(raf);
+  if (hidDev) {
+    hidDev.removeEventListener("inputreport", onHidReport);
+    hidDev.close().catch(() => {});
+    hidDev = null;
+  }
 });
 
 const live = computed(() =>
@@ -279,8 +350,32 @@ function toggleInvert(axis) {
             fill="rgb(var(--accent)/.85)" stroke="rgb(var(--card))" stroke-width="2" />
         </svg>
 
-        <div v-if="follow && !pad.ok" class="hint" style="margin-top:10px;text-align:center;line-height:1.7">
-          未检测到手柄输入。浏览器要先收到一次手柄动作才会暴露设备：<br />按一下手柄任意键，或推动摇杆。
+        <div v-if="follow && !pad.ok" style="margin-top:10px;text-align:center">
+          <div class="hint" style="line-height:1.7">
+            未检测到手柄输入。浏览器要先收到一次手柄动作才会暴露设备：<br />按一下手柄任意键，或推动摇杆。
+          </div>
+          <div v-if="diag.iframe" class="hint" style="margin-top:8px;line-height:1.7;color:rgb(var(--warning))">
+            当前页面运行在嵌入窗口里，手柄接口可能被禁用。用下面的按钮在独立标签页打开再试。
+          </div>
+          <button v-if="diag.iframe" class="btn sm" style="margin-top:8px" @click="openInTab">在新标签页打开</button>
+          <div class="hint mono" style="margin-top:8px;line-height:1.75">
+            Gamepad API {{ diag.api ? "可用" : "不可用" }} · 设备 {{ diag.count }} 台 ·
+            焦点 {{ diag.focused ? "有" : "无" }}{{ diag.iframe ? " · 嵌入窗口" : "" }}{{ diag.secure ? "" : " · 非安全上下文" }}
+            <template v-if="diag.ids.length"><br />{{ diag.ids.join("；") }}</template>
+            <template v-if="diag.hid.length"><br />HID：{{ diag.hid.join("；") }}</template>
+          </div>
+          <button class="btn sm" style="margin-top:8px" @click="refreshDiag">重新检测</button>
+
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgb(var(--border))">
+            <button class="btn sm" :disabled="hidState.opened" @click="openHidInput">
+              {{ hidState.opened ? "输入接口已打开" : "直接读 HID 输入" }}
+            </button>
+            <div v-if="hidState.err" class="hint" style="margin-top:6px;color:rgb(var(--destructive))">{{ hidState.err }}</div>
+            <div v-if="hidState.hex" class="hint mono" style="margin-top:6px;word-break:break-all;text-align:left">{{ hidState.hex }}</div>
+            <div v-if="hidState.opened" class="hint" style="margin-top:6px">
+              已收到 {{ hidState.count }} 帧。推动摇杆后的那行十六进制发我，用它定字段。
+            </div>
+          </div>
         </div>
 
         <div class="grid c2" style="gap:10px;margin-top:14px">
