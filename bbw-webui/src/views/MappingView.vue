@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import { model, edit } from "../core/store.js";
 import { keyName, slotToCode, vkName, hidToVkMod, hidToVkKey } from "../lib/names.js";
-import { keyCodeToBitmap, bitmapToSlot, encodeKeyEntry } from "../../../bbw-protocol/src/keymap.js";
+import { keyCodeToBitmap, bitmapToSlot, encodeKeyEntry, transform2HWKeyboard } from "../../../bbw-protocol/src/keymap.js";
 
 const PHYSICAL = Array.from({ length: 25 }, (_, code) => code)
   .map((code) => ({ code, slot: bitmapToSlot(keyCodeToBitmap(code)) }))
@@ -22,13 +22,21 @@ const entry = computed(() => model.value.keySlots[sel.value.slot]);
 /** 设备键类型 + 编码 → 可读描述 */
 function describe(type, bytes) {
   if (type === 1) {
-    const codes = bytes.filter((b) => b !== 0xff && b !== 0).map((b) => slotToCode(b));
-    return codes.length ? codes.map(keyName).join(" + ") : "组合（空）";
+    // 组合编码是槽位索引：0xFF 才是空位，0 表示槽 0（A），不能当空值过滤掉
+    const slots = bytes.filter((b) => b !== 0xff);
+    if (!slots.length) return "组合（空）";
+    return slots
+      .map((s) => {
+        const code = slotToCode(s);
+        return code >= 0 ? keyName(code) : `槽 ${s}`;
+      })
+      .join(" + ");
   }
   if (type === 2) {
     const vks = bytes[0] ? [hidToVkMod(bytes[0]), hidToVkKey(bytes[1]), hidToVkKey(bytes[2])]
       : [hidToVkKey(bytes[1]), hidToVkKey(bytes[2])];
-    return vks.filter(Boolean).map(vkName).join(" + ");
+    const names = vks.filter(Boolean).map(vkName);
+    return names.length ? names.join(" + ") : "宏 A（空）";
   }
   if (type === 3) return bytes[0] ? `宏B ${bytes[0]}` : "宏B（空）";
   return "自映射";
@@ -46,8 +54,34 @@ const rows = computed(() => PHYSICAL.map((p) => {
   };
 }));
 
-const target = ref("");
 const mode = ref(0); // 0 组合(物理键) 1 宏A(键盘键)
+
+/** 当前槽的映射目标（用于下拉框回显，未映射为空） */
+const comboCode = computed(() => {
+  const e = entry.value;
+  if (e.type !== 1) return "";
+  const slot = e.bytes.find((b) => b !== 0xff);
+  if (slot === undefined) return "";
+  const code = slotToCode(slot);
+  return code >= 0 ? code : "";
+});
+
+// VK → HID 的逆表，用于宏 A 回显
+const HID_TO_VK_UI = (() => {
+  const map = new Map();
+  for (const vk of VK_LIST) {
+    const hid = transform2HWKeyboard(vk);
+    if (hid && !map.has(hid)) map.set(hid, vk);
+  }
+  return map;
+})();
+
+const macroVk = computed(() => {
+  const e = entry.value;
+  if (e.type !== 2) return "";
+  const hid = e.bytes[2] || e.bytes[1];
+  return HID_TO_VK_UI.get(hid) ?? "";
+});
 
 function apply(keys) {
   const enc = encodeKeyEntry({ code: selected.value, type: mode.value === 1 ? 1 : 0, keys });
@@ -57,10 +91,12 @@ function apply(keys) {
   });
 }
 function setCombo(code) {
+  if (code === "" || code === null) return clear();
   mode.value = 0;
   apply([Number(code)]);
 }
 function setMacro(vk) {
+  if (vk === "" || vk === null) return clear();
   mode.value = 1;
   apply([Number(vk)]);
 }
@@ -116,8 +152,8 @@ function toggleEnable() {
             <div class="label">映射为手柄按键</div>
             <div class="desc">写入组合编码，目标为该键的槽位索引</div>
           </div>
-          <select class="select" :value="target" @change="target = $event.target.value; setCombo($event.target.value)">
-            <option value="">选择</option>
+          <select class="select" :value="comboCode" @change="setCombo($event.target.value)">
+            <option value="">未设置</option>
             <option v-for="p in PHYSICAL" :key="p.code" :value="p.code">{{ keyName(p.code) }}</option>
           </select>
         </div>
@@ -127,8 +163,8 @@ function toggleEnable() {
             <div class="label">映射为键盘按键</div>
             <div class="desc">宏 A：按 HID 序列下发，单键</div>
           </div>
-          <select class="select" :value="target" @change="target = $event.target.value; setMacro($event.target.value)">
-            <option value="">选择</option>
+          <select class="select" :value="macroVk" @change="setMacro($event.target.value)">
+            <option value="">未设置</option>
             <option v-for="vk in VK_LIST" :key="vk" :value="vk">{{ vkName(vk) }}</option>
           </select>
         </div>

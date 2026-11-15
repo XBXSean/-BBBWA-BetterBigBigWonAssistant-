@@ -34,28 +34,51 @@ let raf = 0;
 
 function pickPad() {
   const list = navigator.getGamepads ? navigator.getGamepads() : [];
-  for (const p of list) {
-    if (!p || !p.connected) continue;
-    if (/413d|2104|bigbig|彩虹|won/i.test(p.id || "") || p.mapping === "standard") return p;
+  const pads = [];
+  for (let k = 0; k < list.length; k++) {
+    const p = list[k];
+    if (p && p.connected) pads.push(p);
   }
-  return null;
+  if (!pads.length) return null;
+  // 优先 standard 映射（XInput 通道报的就是它），其次本机手柄 id，最后任意一台
+  return pads.find((p) => p.mapping === "standard")
+    || pads.find((p) => /413d|2104|bigbig|彩虹|won|xbox|xinput/i.test(p.id || ""))
+    || pads[0];
 }
 
 function poll() {
   const p = pickPad();
   if (p) {
     const i = sel.value === "left" ? 0 : 2;
-    const x = p.axes[i] ?? 0;
-    const y = -(p.axes[i + 1] ?? 0);
-    pad.value = { ok: true, x, y, id: p.id };
-  } else {
+    let x = p.axes[i] ?? 0;
+    let y = -(p.axes[i + 1] ?? 0);
+    // XInput 斜推时模长可能略超 1，按单位圆收一下，避免圆点跑出边框
+    const len = Math.hypot(x, y);
+    if (len > 1) { x /= len; y /= len; }
+    const prev = pad.value;
+    // 只在变化时写，避免每帧重建对象触发整页重渲染
+    if (!prev.ok || Math.abs(x - prev.x) > 0.0005 || Math.abs(y - prev.y) > 0.0005) {
+      pad.value = { ok: true, x, y, id: p.id };
+    }
+  } else if (pad.value.ok) {
     pad.value = { ok: false, x: 0, y: 0, id: "" };
   }
   raf = requestAnimationFrame(poll);
 }
 
-onMounted(() => { raf = requestAnimationFrame(poll); });
-onBeforeUnmount(() => cancelAnimationFrame(raf));
+/** 浏览器要收到一次手柄输入才会把设备暴露给页面，这里接住该事件立刻生效 */
+function onGamepadConnected(e) {
+  pad.value = { ok: true, x: 0, y: 0, id: e.gamepad?.id || "" };
+}
+
+onMounted(() => {
+  window.addEventListener("gamepadconnected", onGamepadConnected);
+  raf = requestAnimationFrame(poll);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener("gamepadconnected", onGamepadConnected);
+  cancelAnimationFrame(raf);
+});
 
 const live = computed(() =>
   follow.value && pad.value.ok ? { x: pad.value.x, y: pad.value.y } : pos.value);
@@ -232,9 +255,9 @@ function toggleInvert(axis) {
             <h2>试推</h2>
             <p>拖动圆点，或直接推手柄。</p>
           </div>
-          <label class="check" :title="pad.ok ? pad.id : '未检测到手柄输入接口'"
-            :style="pad.ok ? '' : 'opacity:.55'">
-            <input type="checkbox" v-model="follow" :disabled="!pad.ok" />
+          <label class="check" :title="pad.ok ? pad.id : '先推一下手柄摇杆或按任意键激活'"
+            :style="pad.ok ? '' : 'opacity:.75'">
+            <input type="checkbox" v-model="follow" />
             <span>读取手柄</span>
           </label>
         </div>
@@ -255,6 +278,10 @@ function toggleInvert(axis) {
           <circle :cx="100 + (out.x / FULL_SCALE) * 88" :cy="100 - (out.y / FULL_SCALE) * 88" r="9"
             fill="rgb(var(--accent)/.85)" stroke="rgb(var(--card))" stroke-width="2" />
         </svg>
+
+        <div v-if="follow && !pad.ok" class="hint" style="margin-top:10px;text-align:center;line-height:1.7">
+          未检测到手柄输入。浏览器要先收到一次手柄动作才会暴露设备：<br />按一下手柄任意键，或推动摇杆。
+        </div>
 
         <div class="grid c2" style="gap:10px;margin-top:14px">
           <div class="stat" style="padding:10px 12px">
